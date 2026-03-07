@@ -1,0 +1,14 @@
+# 由 Ansible 自动生成，请勿手动修改！
+# Grafana 数据源配置：自动关联 Prometheus
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://localhost:{{ prometheus_port }}
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: "{{ prometheus_scrape_interval }}"

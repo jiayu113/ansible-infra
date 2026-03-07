@@ -1,0 +1,44 @@
+all:
+  vars:
+    ansible_user: root
+
+  children:
+
+    # ===== 数据库服务器 =====
+    db_servers:
+      hosts:
+        server-82:
+          ansible_host: 10.0.0.1
+          server_role: master_db
+          mysql_server_id: 1
+          role: MySQL主库
+
+        # 从库：远程服务器（有从库时取消注释，填入真实IP）
+        # db-slave:
+        #   ansible_host: x.x.x.x        # 从库真实 IP
+        #   server_role: slave_db
+        #   mysql_server_id: 2
+        #   mysql_master_host: 10.0.0.1
+        #   role: MySQL从库
+
+    # ===== 应用服务器 =====
+    app_servers:
+      hosts:
+        server-49:
+          ansible_host: 10.0.0.2
+          role: 应用服务器
+
+    # ===== 监控服务器（本机，Ansible主节点）=====
+    monitoring:
+      hosts:
+        server-local:
+          ansible_host: 10.0.0.3
+          ansible_connection: local       # 本机直接执行，不走SSH
+          role: 监控服务器
+
+    # ===== 所有服务器的父组 =====
+    production:
+      children:
+        db_servers:
+        app_servers:
+        monitoring:

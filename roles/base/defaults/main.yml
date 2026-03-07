@@ -1,0 +1,28 @@
+---
+# ===== 时区配置 =====
+timezone: Asia/Shanghai
+
+# ===== NTP 配置 =====
+ntp_servers:
+  - ntp.aliyun.com
+  - ntp1.aliyun.com
+  - ntp2.aliyun.com
+
+# ===== 运维用户配置 =====
+ops_user: ops
+ops_shell: /bin/bash
+ops_groups: sudo          # Ubuntu 用 sudo，CentOS 用 wheel
+
+# ===== 基础工具包 =====
+base_packages:
+  - vim
+  - wget
+  - curl
+  - htop
+  - net-tools
+  - telnet
+  - git
+  - unzip
+
+# ===== SSH 配置 =====
+ssh_port: 22

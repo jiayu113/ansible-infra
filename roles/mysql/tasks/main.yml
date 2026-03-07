@@ -1,0 +1,196 @@
+---
+# ===== 1. 安装 MySQL =====
+- name: 更新 apt 缓存
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+
+- name: 安装 MySQL 及依赖
+  apt:
+    name:
+      - mysql-server
+      - mysql-client
+      - python3-mysqldb
+      - libmysqlclient-dev
+    state: present
+  when: ansible_os_family == "Debian"
+  notify: 启动 MySQL 服务
+
+- name: 创建 MySQL 日志目录
+  file:
+    path: /var/log/mysql
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: '0755'
+
+# ===== 2. 部署配置文件 =====
+- name: "部署 MySQL 配置文件（角色：{{ server_role }}）"
+  template:
+    src: my.cnf.j2
+    dest: /etc/mysql/mysql.conf.d/mysqld.cnf
+    owner: root
+    group: root
+    mode: '0644'
+    backup: yes
+  notify: 重启 MySQL 服务
+
+# ===== 3. 确保服务运行 =====
+- name: 确保 MySQL 已启动并开机自启
+  systemd:
+    name: mysql
+    state: started
+    enabled: yes
+
+- name: 等待 MySQL 端口就绪
+  wait_for:
+    port: "{{ mysql_port }}"
+    delay: 3
+    timeout: 30
+
+# ===== 4. 设置 root 密码 =====
+- name: 设置 MySQL root 密码
+  mysql_user:
+    name: root
+    password: "{{ mysql_root_password }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    host_all: yes
+    state: present
+  no_log: true
+
+- name: 创建 root 免密登录文件
+  template:
+    src: my_client.cnf.j2
+    dest: /root/.my.cnf
+    owner: root
+    mode: '0600'
+  no_log: true
+
+# ===== 5. 安全清理 =====
+- name: 删除匿名用户
+  mysql_user:
+    name: ''
+    host_all: yes
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: 删除测试数据库
+  mysql_db:
+    name: test
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+# ===== 6. 主库：创建复制用户 =====
+- name: 创建复制用户（仅主库）
+  mysql_user:
+    name: "{{ mysql_repl_user }}"
+    password: "{{ mysql_repl_password }}"
+    priv: "*.*:REPLICATION SLAVE"
+    host: "%"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+  when: server_role == 'master_db'
+  no_log: true
+
+# ===== 7. 从库：配置主从复制（加保护！）=====
+
+# 先检查当前复制状态
+- name: 检查当前复制状态（仅从库）
+  mysql_replication:
+    mode: getreplica
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+  register: current_replica_status
+  when: server_role == 'slave_db'
+  ignore_errors: yes
+  no_log: true
+
+# 判断是否已经在正常同步
+- name: 判断复制是否已正常运行
+  set_fact:
+    replication_running: >-
+      {{
+        current_replica_status.Slave_IO_Running  | default('') == 'Yes' and
+        current_replica_status.Slave_SQL_Running | default('') == 'Yes'
+      }}
+  when: server_role == 'slave_db'
+
+- name: 显示当前复制状态
+  debug:
+    msg: >-
+      复制状态：{{
+        '已在正常同步，跳过配置 ✅' if replication_running
+        else '未运行，需要配置 ⚠️'
+      }}
+  when: server_role == 'slave_db'
+
+# 只有复制未运行时才配置（关键保护！）
+- name: 获取主库 binlog 位置（复制未运行时）
+  mysql_replication:
+    mode: getprimary
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    login_host: "{{ mysql_master_host }}"
+  register: master_status
+  when:
+    - server_role == 'slave_db'
+    - not replication_running      
+  no_log: true
+
+- name: 配置从库连接主库（复制未运行时）
+  mysql_replication:
+    mode: changeprimary
+    primary_host: "{{ mysql_master_host }}"
+    primary_user: "{{ mysql_repl_user }}"
+    primary_password: "{{ mysql_repl_password }}"
+    primary_log_file: "{{ master_status.File }}"
+    primary_log_pos: "{{ master_status.Position }}"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+  when:
+    - server_role == 'slave_db'
+    - not replication_running      
+  no_log: true
+
+- name: 启动从库复制线程（复制未运行时）
+  mysql_replication:
+    mode: startreplica
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+  when:
+    - server_role == 'slave_db'
+    - not replication_running      
+
+# ===== 8. 验证最终状态 =====
+- name: 验证复制最终状态（从库）
+  mysql_replication:
+    mode: getreplica
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+  register: final_replica_status
+  when: server_role == 'slave_db'
+
+- name: 输出复制状态
+  debug:
+    msg:
+      - "======================================="
+      - "主从复制状态"
+      - "IO  线程: {{ final_replica_status.Slave_IO_Running }}"
+      - "SQL 线程: {{ final_replica_status.Slave_SQL_Running }}"
+      - "同步延迟: {{ final_replica_status.Seconds_Behind_Master }}秒"
+      - "======================================="
+  when: server_role == 'slave_db'
+
+# ===== 9. 汇总 =====
+- name: MySQL 配置完成汇总
+  debug:
+    msg:
+      - "======================================="
+      - "[OK] {{ inventory_hostname }} MySQL 运行正常"
+      - "角色    : {{ server_role }}"
+      - "端口    : {{ mysql_port }}"
+      - "======================================="

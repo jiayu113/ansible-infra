@@ -1,0 +1,29 @@
+---
+- name: 重载并重启 node_exporter
+  systemd:
+    name: node_exporter
+    state: restarted
+    daemon_reload: yes
+
+- name: 重载 Prometheus 配置
+  uri:
+    url: "http://localhost:9090/-/reload"
+    method: POST
+    status_code: 200
+  ignore_errors: yes
+
+- name: 重启 Prometheus 服务
+  systemd:
+    name: prometheus
+    state: restarted
+    daemon_reload: yes
+
+- name: 重启 Grafana 服务
+  systemd:
+    name: grafana-server
+    state: restarted
+
+- name: 重载防火墙
+  systemd:
+    name: firewalld
+    state: reloaded

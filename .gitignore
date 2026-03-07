@@ -1,0 +1,31 @@
+# ================================================
+# Ansible 敏感文件 - 不上传 GitHub
+# ================================================
+
+# Vault 密码文件（本地存放）
+.vault_pass
+*.vault_pass
+
+# SSH 私钥
+*.pem
+*.key
+id_rsa
+id_ed25519
+
+# 本地覆盖配置
+*.local.yml
+local.cfg
+
+# 系统文件
+.DS_Store
+*.swp
+*.swo
+__pycache__/
+*.pyc
+
+# Ansible 临时文件
+*.retry
+.ansible/
+
+# 注意：vault.yml 文件本身可以上传（内容已加密）
+# 但 .vault_pass 绝对不能上传！

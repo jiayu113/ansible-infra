@@ -1,0 +1,48 @@
+---
+- name: 批量安装基础工具包
+  hosts: all
+  become: yes
+
+  # 软件包名 → 对应的验证命令 映射表
+  vars:
+    package_cmd_map:
+      vim: vim
+      wget: wget
+      curl: curl
+      htop: htop
+      net-tools: netstat    # ← 关键修复！net-tools 的命令是 netstat
+
+  tasks:
+
+    - name: 更新 apt 缓存
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+    - name: 批量安装基础工具（来自 group_vars）
+      apt:
+        name: "{{ base_packages }}"
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: 验证工具是否安装成功
+      command: "which {{ package_cmd_map[item] | default(item) }}"
+      loop: "{{ base_packages }}"
+      register: check_result
+      ignore_errors: yes
+
+    - name: 输出安装验证结果
+      debug:
+        msg: "{{ item.item }}：{{ '[OK] 已安装' if item.rc == 0 else '[FAIL] 未找到' }}"
+      loop: "{{ check_result.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: 安装完成汇总
+      debug:
+        msg:
+          - "=============================="
+          - "[OK] {{ inventory_hostname }} 工具安装完成"
+          - "已安装：{{ base_packages | join(', ') }}"
+          - "=============================="

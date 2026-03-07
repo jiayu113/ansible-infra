@@ -1,0 +1,10 @@
+---
+# Node Exporter 部署到所有服务器
+- name: 部署 Node Exporter（全部服务器）
+  hosts: all
+  become: yes
+  roles:
+    - role: monitoring
+
+# Prometheus + Grafana 只装在监控服务器
+# （monitoring role 内部用 when: '"monitoring" in group_names' 控制）

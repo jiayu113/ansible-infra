@@ -1,0 +1,12 @@
+---
+- name: 启动 MySQL 服务
+  systemd:
+    name: mysql
+    state: started
+    enabled: yes
+
+- name: 重启 MySQL 服务
+  systemd:
+    name: mysql
+    state: restarted
+    enabled: yes

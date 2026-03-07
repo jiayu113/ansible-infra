@@ -1,0 +1,11 @@
+---
+# 本机直接执行，不走 SSH
+ansible_connection: local
+
+# 内存只有 1608MB，限制 MySQL 从库内存（如果部署从库）
+mysql_max_connections: 50
+mysql_innodb_buffer_pool_size: "256M"
+
+# 监控服务绑定地址
+prometheus_listen_address: "0.0.0.0:9090"
+grafana_listen_address: "0.0.0.0:3000"

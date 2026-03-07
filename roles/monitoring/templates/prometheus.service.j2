@@ -1,0 +1,25 @@
+# 由 Ansible 自动生成，请勿手动修改！
+# 生成时间：{{ ansible_date_time.date }}
+
+[Unit]
+Description=Prometheus - 监控数据收集与存储
+Documentation=https://prometheus.io/docs
+After=network.target
+
+[Service]
+Type=simple
+User={{ prometheus_user }}
+Group={{ prometheus_user }}
+
+ExecStart={{ prometheus_bin }} \
+    --config.file={{ prometheus_config_dir }}/prometheus.yml \
+    --storage.tsdb.path={{ prometheus_data_dir }} \
+    --storage.tsdb.retention.time=30d \
+    --web.listen-address=0.0.0.0:{{ prometheus_port }} \
+    --web.enable-lifecycle
+
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

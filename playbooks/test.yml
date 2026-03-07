@@ -1,0 +1,31 @@
+---
+- name: 获取所有服务器系统信息
+  hosts: all
+  gather_facts: yes        # 开启系统信息收集
+
+  tasks:
+
+    - name: 输出主机名
+      debug:
+        msg: "主机名：{{ ansible_hostname }}"
+
+    - name: 输出 IP 地址
+      debug:
+        msg: "IP地址：{{ ansible_default_ipv4.address }}"
+
+    - name: 输出操作系统版本
+      debug:
+        msg: "OS版本：{{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+    - name: 汇总输出所有信息
+      debug:
+        msg:
+          - "====================================="
+          - "主机名   : {{ ansible_hostname }}"
+          - "IP地址   : {{ ansible_default_ipv4.address }}"
+          - "OS版本   : {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "内核版本  : {{ ansible_kernel }}"
+          - "CPU核心  : {{ ansible_processor_vcpus }} 核"
+          - "内存大小  : {{ ansible_memtotal_mb }} MB"
+          - "服务角色  : {{ role | default('未定义') }}"
+          - "====================================="

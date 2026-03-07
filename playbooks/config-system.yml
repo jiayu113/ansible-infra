@@ -1,0 +1,90 @@
+---
+- name: 系统配置（时区 + NTP + SELinux）
+  hosts: all
+  become: yes
+
+  tasks:
+
+    # ── 1. 设置时区 ──────────────────────
+    - name: 设置系统时区为 {{ timezone }}
+      timezone:
+        name: "{{ timezone }}"
+      notify: 输出时区设置结果
+
+    - name: 验证时区是否设置正确
+      command: timedatectl show --property=Timezone --value
+      register: current_timezone
+
+    - name: 显示当前时区
+      debug:
+        msg: "当前时区：{{ current_timezone.stdout }} \
+              {{ '正确' if current_timezone.stdout == timezone else '有误' }}"
+
+    # ── 2. 配置 NTP 时间同步 ──────────────
+    - name: 安装 NTP 服务（Ubuntu）
+      apt:
+        name: ntp
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: 配置 NTP 服务器
+      lineinfile:
+        path: /etc/ntp.conf
+        regexp: "^server {{ item }}"
+        line: "server {{ item }} iburst"
+        state: present
+        create: yes
+      loop: "{{ ntp_servers }}"
+      notify: 重启 NTP 服务
+
+    - name: 启动 NTP 服务并设置开机自启
+      systemd:
+        name: ntp
+        state: started
+        enabled: yes
+      ignore_errors: yes
+
+    # ── 3. 禁用 SELinux（如果存在）─────────
+    - name: 检查 SELinux 是否存在
+      stat:
+        path: /etc/selinux/config
+      register: selinux_config
+
+    - name: 禁用 SELinux（如果存在）
+      lineinfile:
+        path: /etc/selinux/config
+        regexp: '^SELINUX='
+        line: 'SELINUX=disabled'
+      when: selinux_config.stat.exists
+      notify: 提示 SELinux 已禁用
+
+    - name: SELinux 不存在时提示
+      debug:
+        msg: "{{ inventory_hostname }} 无 SELinux，跳过"
+      when: not selinux_config.stat.exists
+
+    # ── 4. 输出系统配置汇总 ──────────────
+    - name: 系统配置完成汇总
+      debug:
+        msg:
+          - "=============================="
+          - "{{ inventory_hostname }} 系统配置完成"
+          - "时区    : {{ timezone }}"
+          - "NTP服务器: {{ ntp_servers | join(', ') }}"
+          - "系统    : {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "=============================="
+
+  handlers:
+    - name: 重启 NTP 服务
+      systemd:
+        name: ntp
+        state: restarted
+      ignore_errors: yes
+
+    - name: 提示 SELinux 已禁用
+      debug:
+        msg: "SELinux 已禁用，重启后生效！"
+
+    - name: 输出时区设置结果
+      debug:
+        msg: "时区已设置为 {{ timezone }}"

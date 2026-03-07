@@ -1,0 +1,17 @@
+---
+# ===== Handlers =====
+
+- name: 重启 sshd 服务
+  systemd:
+    name: sshd
+    state: restarted
+
+- name: 重启 chronyd 服务
+  systemd:
+    name: chrony
+    state: restarted
+    enabled: yes
+
+- name: 重载防火墙
+  ufw:
+    state: reloaded

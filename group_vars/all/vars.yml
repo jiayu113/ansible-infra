@@ -1,0 +1,37 @@
+---
+# ================================================
+# 公用变量（安全，可上传 GitHub）
+# 敏感变量请放到 vault.yml（已加密）
+# ================================================
+
+# 时区
+timezone: "Asia/Shanghai"
+
+# 基础工具包
+base_packages:
+  - vim
+  - wget
+  - curl
+  - htop
+  - net-tools
+  - git
+  - unzip
+
+# NTP 服务器
+ntp_servers:
+  - ntp.aliyun.com
+  - ntp1.aliyun.com
+
+# 运维用户
+ops_user: ops
+ops_shell: /bin/bash
+ops_groups: sudo
+
+# MySQL 基础配置（非敏感）
+mysql_port: 3306
+mysql_repl_user: replicator
+
+# 监控配置（非敏感）
+node_exporter_port: 9100
+prometheus_port: 9090
+grafana_port: 3000

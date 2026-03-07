@@ -1,0 +1,7 @@
+---
+- name: 系统基础配置（使用 base Role）
+  hosts: all
+  become: yes
+
+  roles:
+    - role: base           

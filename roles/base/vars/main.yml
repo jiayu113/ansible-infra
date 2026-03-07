@@ -1,0 +1,4 @@
+---
+# Role 内部变量（不建议外部覆盖）
+chrony_conf_path: /etc/chrony/chrony.conf
+sudoers_dir: /etc/sudoers.d

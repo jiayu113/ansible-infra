@@ -1,0 +1,31 @@
+---
+# ===== Node Exporter =====
+node_exporter_version: "1.7.0"
+node_exporter_arch: "linux-amd64"
+node_exporter_filename: "node_exporter-{{ node_exporter_version }}.{{ node_exporter_arch }}"
+node_exporter_download_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/{{ node_exporter_filename }}.tar.gz"
+node_exporter_install_dir: /opt
+node_exporter_bin: /usr/local/bin/node_exporter
+node_exporter_port: 9100
+node_exporter_user: node_exporter
+node_exporter_web_listen: "0.0.0.0:{{ node_exporter_port }}"
+
+# ===== Prometheus =====
+prometheus_version: "2.51.0"
+prometheus_arch: "linux-amd64"
+prometheus_filename: "prometheus-{{ prometheus_version }}.{{ prometheus_arch }}"
+prometheus_download_url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/{{ prometheus_filename }}.tar.gz"
+prometheus_install_dir: /opt
+prometheus_bin: /usr/local/bin/prometheus
+prometheus_config_dir: /etc/prometheus
+prometheus_data_dir: /var/lib/prometheus
+prometheus_port: 9090
+prometheus_user: prometheus
+prometheus_scrape_interval: 15s
+prometheus_evaluation_interval: 15s
+
+# ===== Grafana =====
+grafana_port: 3000
+grafana_admin_user: admin
+grafana_admin_password: "{{ vault_grafana_admin_password }}"
+grafana_data_dir: /var/lib/grafana

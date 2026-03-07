@@ -1,0 +1,6 @@
+---
+# 远程 MySQL 从库配置
+# 使用时在 inventory 里取消注释 db-slave 主机
+server_role: slave_db
+mysql_server_id: 2
+mysql_master_host: 10.0.0.1    # 主库IP，按实际修改

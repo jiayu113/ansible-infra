@@ -1,0 +1,29 @@
+# 由 Ansible 自动生成，请勿手动修改！
+# 生成时间：{{ ansible_date_time.date }}
+# 目标主机：{{ inventory_hostname }}
+
+[Unit]
+Description=Node Exporter - Prometheus 监控指标采集器
+Documentation=https://github.com/prometheus/node_exporter
+After=network.target
+
+[Service]
+Type=simple
+User={{ node_exporter_user }}
+Group={{ node_exporter_user }}
+
+ExecStart={{ node_exporter_bin }} \
+    --web.listen-address={{ node_exporter_web_listen }} \
+    --collector.systemd \
+    --collector.processes
+
+Restart=on-failure
+RestartSec=5s
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

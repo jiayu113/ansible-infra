@@ -1,0 +1,22 @@
+---
+# ===== MySQL 基础配置 =====
+mysql_port: 3306
+mysql_bind_address: "0.0.0.0"
+mysql_max_connections: 200
+mysql_datadir: /var/lib/mysql
+
+# ===== 字符集配置 =====
+mysql_character_set: utf8mb4
+mysql_collation: utf8mb4_unicode_ci
+
+# ===== 主从复制配置 =====
+mysql_repl_user: replicator
+mysql_binlog_format: ROW
+
+# ===== 慢查询配置 =====
+mysql_slow_query_log: 1
+mysql_slow_query_time: 2
+
+# ===== 密码（从 vault 引用，不在这里明文写）=====
+mysql_root_password: "{{ vault_mysql_root_password }}"
+mysql_repl_password: "{{ vault_mysql_repl_password }}"

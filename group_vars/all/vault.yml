@@ -1,0 +1,14 @@
+---
+# ================================================
+# 敏感变量（此文件必须用 ansible-vault 加密！）
+# 加密命令：ansible-vault encrypt group_vars/all/vault.yml
+# 查看命令：ansible-vault view group_vars/all/vault.yml
+# 编辑命令：ansible-vault edit group_vars/all/vault.yml
+# ================================================
+
+# MySQL 密码
+vault_mysql_root_password: "Change_Me_Strong_Password_2024"
+vault_mysql_repl_password: "Change_Me_Repl_Password_2024"
+
+# Grafana 密码
+vault_grafana_admin_password: "Change_Me_Grafana_2024"

@@ -1,0 +1,172 @@
+---
+# ================================================
+# base Role：系统基础配置
+# 适用系统：Ubuntu 20.04 / 22.04
+# ================================================
+
+# ===== 1. 设置主机名 =====
+- name: 设置主机名
+  hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: 确保 hosts 文件包含本机解析
+  lineinfile:
+    path: /etc/hosts
+    regexp: "^127.0.1.1"
+    line: "127.0.1.1  {{ inventory_hostname }}"
+    state: present
+
+# ===== 2. 设置时区 =====
+- name: 设置系统时区为 {{ timezone }}
+  timezone:
+    name: "{{ timezone }}"
+
+- name: 验证时区设置
+  command: timedatectl show --property=Timezone --value
+  register: current_tz
+  changed_when: false
+
+- name: 输出当前时区
+  debug:
+    msg: "当前时区：{{ current_tz.stdout }} \
+          {{ '[OK]' if current_tz.stdout == timezone else '[WARN] 设置可能未生效' }}"
+
+# ===== 3. 配置 NTP 时间同步（chrony）=====
+- name: 安装 chrony（Ubuntu）
+  apt:
+    name: chrony
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: 配置 NTP 服务器
+  lineinfile:
+    path: /etc/chrony/chrony.conf
+    regexp: "^server {{ item }}"
+    line: "server {{ item }} iburst"
+    state: present
+  loop: "{{ ntp_servers }}"
+  notify: 重启 chronyd 服务
+
+- name: 启动 chronyd 并设置开机自启
+  systemd:
+    name: chrony
+    state: started
+    enabled: yes
+
+# ===== 4. 创建运维用户 ops =====
+- name: 创建运维用户 {{ ops_user }}
+  user:
+    name: "{{ ops_user }}"
+    shell: "{{ ops_shell }}"
+    groups: "{{ ops_groups }}"
+    append: yes              # 追加组，不覆盖已有的组
+    create_home: yes
+    state: present
+    comment: "Ops User - Managed by Ansible"
+
+- name: 创建 ops 用户的 .ssh 目录
+  file:
+    path: "/home/{{ ops_user }}/.ssh"
+    state: directory
+    owner: "{{ ops_user }}"
+    group: "{{ ops_user }}"
+    mode: '0700'
+
+# ===== 5. 配置 sudo 免密 =====
+- name: 配置 ops 用户 sudo 免密
+  lineinfile:
+    path: "/etc/sudoers.d/{{ ops_user }}"
+    line: "{{ ops_user }} ALL=(ALL) NOPASSWD: ALL"
+    create: yes
+    owner: root
+    group: root
+    mode: '0440'
+    validate: 'visudo -cf %s'   # 写入前验证语法，防止锁死系统！
+
+# ===== 6. 安装基础工具包 =====
+- name: 更新 apt 缓存
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+
+- name: 安装基础工具包
+  apt:
+    name: "{{ base_packages }}"
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: 验证关键工具是否安装成功
+  command: "which {{ item }}"
+  loop:
+    - vim
+    - wget
+    - curl
+    - htop
+  register: tool_check
+  changed_when: false
+  ignore_errors: yes
+
+- name: 输出工具安装验证
+  debug:
+    msg: "{{ item.item }}：{{ '[OK]' if item.rc == 0 else '[FAIL]' }}"
+  loop: "{{ tool_check.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+# ===== 7. 配置防火墙基本规则（UFW）=====
+- name: 安装 ufw
+  apt:
+    name: ufw
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: 设置 UFW 默认拒绝入站
+  ufw:
+    default: deny
+    direction: incoming
+  notify: 重载防火墙
+
+- name: 设置 UFW 默认允许出站
+  ufw:
+    default: allow
+    direction: outgoing
+
+- name: 允许 SSH 端口（防止锁死！）
+  ufw:
+    rule: allow
+    port: "{{ ssh_port | string }}"
+    proto: tcp
+  notify: 重载防火墙
+
+- name: 允许 HTTP 端口
+  ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+  notify: 重载防火墙
+
+- name: 允许 HTTPS 端口
+  ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+  notify: 重载防火墙
+
+- name: 启用 UFW 防火墙
+  ufw:
+    state: enabled
+  notify: 重载防火墙
+
+# ===== 8. 输出配置完成汇总 =====
+- name: base Role 配置完成汇总
+  debug:
+    msg:
+      - "======================================="
+      - "[OK] {{ inventory_hostname }} 基础配置完成！"
+      - "时区    : {{ timezone }}"
+      - "NTP     : {{ ntp_servers[0] }}"
+      - "运维用户 : {{ ops_user }}"
+      - "系统    : {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      - "======================================="

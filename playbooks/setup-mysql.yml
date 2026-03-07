@@ -1,0 +1,7 @@
+---
+- name: 部署 MySQL（主从架构）
+  hosts: db_servers
+  become: yes
+
+  roles:
+    - role: mysql

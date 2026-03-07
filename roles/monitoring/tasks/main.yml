@@ -1,0 +1,383 @@
+---
+# ================================================
+# monitoring Role：Node Exporter + Prometheus + Grafana
+# 所有服务器装 Node Exporter
+# 只有 monitoring 组的服务器装 Prometheus + Grafana
+# ================================================
+
+# ============================================================
+# 第一部分：Node Exporter（所有服务器都装）
+# ============================================================
+
+- name: 创建 node_exporter 系统用户
+  user:
+    name: "{{ node_exporter_user }}"
+    shell: /sbin/nologin
+    system: yes
+    create_home: no
+    comment: "Node Exporter Service User"
+    state: present
+
+- name: 检查 node_exporter 是否已安装
+  stat:
+    path: "{{ node_exporter_bin }}"
+  register: node_exporter_binary
+
+- name: 检查已安装版本
+  command: "{{ node_exporter_bin }} --version"
+  register: installed_version
+  when: node_exporter_binary.stat.exists
+  changed_when: false
+  ignore_errors: yes
+
+- name: 显示已安装版本
+  debug:
+    msg: "已安装版本：{{ installed_version.stderr_lines[0] | default('未安装') }}"
+  when: node_exporter_binary.stat.exists
+
+- name: 下载 Node Exporter {{ node_exporter_version }}
+  get_url:
+    url: "{{ node_exporter_download_url }}"
+    dest: "/tmp/{{ node_exporter_filename }}.tar.gz"
+    mode: '0644'
+    timeout: 60
+  when: not node_exporter_binary.stat.exists
+
+- name: 解压 Node Exporter
+  unarchive:
+    src: "/tmp/{{ node_exporter_filename }}.tar.gz"
+    dest: "{{ node_exporter_install_dir }}"
+    remote_src: yes
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_user }}"
+  when: not node_exporter_binary.stat.exists
+
+- name: 创建软链接
+  file:
+    src: "{{ node_exporter_install_dir }}/{{ node_exporter_filename }}/node_exporter"
+    dest: "{{ node_exporter_bin }}"
+    state: link
+    force: yes
+
+- name: 部署 node_exporter systemd 服务
+  template:
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: 重载并重启 node_exporter
+
+- name: 启动 node_exporter 并设置开机自启
+  systemd:
+    name: node_exporter
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: 配置防火墙开放 {{ node_exporter_port }} 端口
+  firewalld:
+    port: "{{ node_exporter_port }}/tcp"
+    permanent: yes
+    state: enabled
+    immediate: yes
+  notify: 重载防火墙
+
+- name: 清理 node_exporter 临时文件
+  file:
+    path: "/tmp/{{ node_exporter_filename }}.tar.gz"
+    state: absent
+  when: not node_exporter_binary.stat.exists
+
+- name: 验证 node_exporter 接口
+  uri:
+    url: "http://localhost:{{ node_exporter_port }}/metrics"
+    status_code: 200
+  register: ne_check
+
+- name: 输出 Node Exporter 状态
+  debug:
+    msg: "[OK] {{ inventory_hostname }} Node Exporter 运行正常（端口:{{ node_exporter_port }}）"
+
+
+# ============================================================
+# 第二部分：Prometheus（仅 monitoring 组）
+# ============================================================
+
+- name: "=== 开始安装 Prometheus（仅监控服务器）==="
+  debug:
+    msg: "当前主机：{{ inventory_hostname }}，所属组：{{ group_names }}"
+  when: '"monitoring" in group_names'
+
+- name: 创建 prometheus 系统用户
+  user:
+    name: "{{ prometheus_user }}"
+    shell: /sbin/nologin
+    system: yes
+    create_home: no
+    comment: "Prometheus Service User"
+    state: present
+  when: '"monitoring" in group_names'
+
+- name: 创建 Prometheus 相关目录
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_user }}"
+    mode: '0755'
+  loop:
+    - "{{ prometheus_config_dir }}"
+    - "{{ prometheus_data_dir }}"
+  when: '"monitoring" in group_names'
+
+- name: 检查 Prometheus 是否已安装
+  stat:
+    path: "{{ prometheus_bin }}"
+  register: prometheus_binary
+  when: '"monitoring" in group_names'
+
+- name: 下载 Prometheus {{ prometheus_version }}
+  get_url:
+    url: "{{ prometheus_download_url }}"
+    dest: "/tmp/{{ prometheus_filename }}.tar.gz"
+    mode: '0644'
+    timeout: 120
+  when:
+    - '"monitoring" in group_names'
+    - not prometheus_binary.stat.exists
+
+- name: 解压 Prometheus
+  unarchive:
+    src: "/tmp/{{ prometheus_filename }}.tar.gz"
+    dest: "{{ prometheus_install_dir }}"
+    remote_src: yes
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_user }}"
+  when:
+    - '"monitoring" in group_names'
+    - not prometheus_binary.stat.exists
+
+- name: 安装 Prometheus 二进制文件
+  copy:
+    src: "{{ prometheus_install_dir }}/{{ prometheus_filename }}/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    owner: root
+    group: root
+    mode: '0755'
+    remote_src: yes
+  loop:
+    - prometheus
+    - promtool
+  when:
+    - '"monitoring" in group_names'
+    - not prometheus_binary.stat.exists
+
+- name: 复制 Prometheus 控制台文件
+  copy:
+    src: "{{ prometheus_install_dir }}/{{ prometheus_filename }}/{{ item }}"
+    dest: "{{ prometheus_config_dir }}/{{ item }}"
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_user }}"
+    remote_src: yes
+  loop:
+    - consoles
+    - console_libraries
+  when:
+    - '"monitoring" in group_names'
+    - not prometheus_binary.stat.exists
+  ignore_errors: yes
+
+- name: 部署 Prometheus 配置文件
+  template:
+    src: prometheus.yml.j2
+    dest: "{{ prometheus_config_dir }}/prometheus.yml"
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_user }}"
+    mode: '0644'
+    backup: yes
+  when: '"monitoring" in group_names'
+  notify: 重载 Prometheus 配置
+
+- name: 部署 Prometheus systemd 服务
+  template:
+    src: prometheus.service.j2
+    dest: /etc/systemd/system/prometheus.service
+    owner: root
+    group: root
+    mode: '0644'
+  when: '"monitoring" in group_names'
+  notify: 重启 Prometheus 服务
+
+- name: 启动 Prometheus 并设置开机自启
+  systemd:
+    name: prometheus
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  when: '"monitoring" in group_names'
+
+- name: 配置防火墙开放 Prometheus {{ prometheus_port }} 端口
+  firewalld:
+    port: "{{ prometheus_port }}/tcp"
+    permanent: yes
+    state: enabled
+    immediate: yes
+  when: '"monitoring" in group_names'
+  notify: 重载防火墙
+
+- name: 清理 Prometheus 临时文件
+  file:
+    path: "/tmp/{{ prometheus_filename }}.tar.gz"
+    state: absent
+  when:
+    - '"monitoring" in group_names'
+    - not prometheus_binary.stat.exists
+
+- name: 验证 Prometheus 接口
+  uri:
+    url: "http://localhost:{{ prometheus_port }}/-/healthy"
+    status_code: 200
+  when: '"monitoring" in group_names'
+  register: prom_check
+
+- name: 输出 Prometheus 状态
+  debug:
+    msg: "[OK] Prometheus 运行正常（端口:{{ prometheus_port }}）接口：http://{{ ansible_host }}:{{ prometheus_port }}"
+  when: '"monitoring" in group_names'
+
+
+# ============================================================
+# 第三部分：Grafana（仅 monitoring 组）
+# ============================================================
+
+- name: "=== 开始安装 Grafana（仅监控服务器）==="
+  debug:
+    msg: "安装 Grafana 到 {{ inventory_hostname }}"
+  when: '"monitoring" in group_names'
+
+- name: 安装 Grafana 依赖
+  apt:
+    name:
+      - apt-transport-https
+      - software-properties-common
+      - wget
+      - gpg
+    state: present
+    update_cache: yes
+  when:
+    - '"monitoring" in group_names'
+    - ansible_os_family == "Debian"
+
+- name: 添加 Grafana GPG 密钥
+  shell: |
+    wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor | \
+    tee /usr/share/keyrings/grafana.gpg > /dev/null
+  args:
+    creates: /usr/share/keyrings/grafana.gpg
+  when:
+    - '"monitoring" in group_names'
+    - ansible_os_family == "Debian"
+
+- name: 添加 Grafana apt 仓库
+  apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/grafana.gpg] https://apt.grafana.com stable main"
+    state: present
+    filename: grafana
+  when:
+    - '"monitoring" in group_names'
+    - ansible_os_family == "Debian"
+
+- name: 安装 Grafana
+  apt:
+    name: grafana
+    state: present
+    update_cache: yes
+  when:
+    - '"monitoring" in group_names'
+    - ansible_os_family == "Debian"
+
+- name: 配置 Grafana admin 密码
+  lineinfile:
+    path: /etc/grafana/grafana.ini
+    regexp: '^;?admin_password\s*='
+    line: "admin_password = {{ grafana_admin_password }}"
+    backup: yes
+  when: '"monitoring" in group_names'
+  no_log: true
+  notify: 重启 Grafana 服务
+
+- name: 配置 Grafana 监听端口
+  lineinfile:
+    path: /etc/grafana/grafana.ini
+    regexp: '^;?http_port\s*='
+    line: "http_port = {{ grafana_port }}"
+  when: '"monitoring" in group_names'
+  notify: 重启 Grafana 服务
+
+- name: 创建 Grafana 数据源配置目录
+  file:
+    path: /etc/grafana/provisioning/datasources
+    state: directory
+    owner: grafana
+    group: grafana
+    mode: '0755'
+  when: '"monitoring" in group_names'
+
+- name: 部署 Grafana 数据源配置（自动关联 Prometheus）
+  template:
+    src: grafana_datasource.yml.j2
+    dest: /etc/grafana/provisioning/datasources/prometheus.yml
+    owner: grafana
+    group: grafana
+    mode: '0640'
+  when: '"monitoring" in group_names'
+  notify: 重启 Grafana 服务
+
+- name: 启动 Grafana 并设置开机自启
+  systemd:
+    name: grafana-server
+    state: started
+    enabled: yes
+  when: '"monitoring" in group_names'
+
+- name: 配置防火墙开放 Grafana {{ grafana_port }} 端口
+  firewalld:
+    port: "{{ grafana_port }}/tcp"
+    permanent: yes
+    state: enabled
+    immediate: yes
+  when: '"monitoring" in group_names'
+  notify: 重载防火墙
+
+- name: 等待 Grafana 启动就绪
+  wait_for:
+    host: localhost
+    port: "{{ grafana_port }}"
+    delay: 3
+    timeout: 60
+  when: '"monitoring" in group_names'
+
+- name: 验证 Grafana 接口
+  uri:
+    url: "http://localhost:{{ grafana_port }}/api/health"
+    status_code: 200
+  when: '"monitoring" in group_names'
+  register: grafana_check
+
+# ============================================================
+# 最终汇总
+# ============================================================
+
+- name: 监控组件部署完成汇总
+  debug:
+    msg:
+      - "======================================="
+      - "[OK] {{ inventory_hostname }} 监控部署完成！"
+      - "Node Exporter : http://{{ ansible_host }}:{{ node_exporter_port }}/metrics"
+      - "Prometheus    : http://{{ ansible_host }}:{{ prometheus_port }}"
+      - "Grafana       : http://{{ ansible_host }}:{{ grafana_port }}"
+      - "Grafana账号   : admin / {{ grafana_admin_password }}"
+      - "======================================="
+  when: '"monitoring" in group_names'
+  no_log: true
