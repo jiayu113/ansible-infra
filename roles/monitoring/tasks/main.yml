@@ -76,11 +76,10 @@
     daemon_reload: yes
 
 - name: 配置防火墙开放 {{ node_exporter_port }} 端口
-  firewalld:
-    port: "{{ node_exporter_port }}/tcp"
-    permanent: yes
-    state: enabled
-    immediate: yes
+  ufw:
+    rule: allow
+    port: "{{ node_exporter_port | string }}"
+    proto: tcp
   notify: 重载防火墙
 
 - name: 清理 node_exporter 临时文件
@@ -218,11 +217,10 @@
   when: '"monitoring" in group_names'
 
 - name: 配置防火墙开放 Prometheus {{ prometheus_port }} 端口
-  firewalld:
-    port: "{{ prometheus_port }}/tcp"
-    permanent: yes
-    state: enabled
-    immediate: yes
+  ufw:
+    rule: allow
+    port: "{{ prometheus_port | string }}"
+    proto: tcp
   when: '"monitoring" in group_names'
   notify: 重载防火墙
 
@@ -342,11 +340,10 @@
   when: '"monitoring" in group_names'
 
 - name: 配置防火墙开放 Grafana {{ grafana_port }} 端口
-  firewalld:
-    port: "{{ grafana_port }}/tcp"
-    permanent: yes
-    state: enabled
-    immediate: yes
+  ufw:
+    rule: allow
+    port: "{{ grafana_port | string }}"
+    proto: tcp
   when: '"monitoring" in group_names'
   notify: 重载防火墙
 
@@ -377,7 +374,6 @@
       - "Node Exporter : http://{{ ansible_host }}:{{ node_exporter_port }}/metrics"
       - "Prometheus    : http://{{ ansible_host }}:{{ prometheus_port }}"
       - "Grafana       : http://{{ ansible_host }}:{{ grafana_port }}"
-      - "Grafana账号   : admin / {{ grafana_admin_password }}"
+      - "Grafana账号   : admin / <密码见 vault.yml>"
       - "======================================="
   when: '"monitoring" in group_names'
-  no_log: true
