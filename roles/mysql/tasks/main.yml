@@ -179,9 +179,9 @@
     msg:
       - "======================================="
       - "主从复制状态"
-      - "IO  线程: {{ final_replica_status.Slave_IO_Running }}"
-      - "SQL 线程: {{ final_replica_status.Slave_SQL_Running }}"
-      - "同步延迟: {{ final_replica_status.Seconds_Behind_Master }}秒"
+      - "IO  线程: {{ final_replica_status.Slave_IO_Running | default('N/A') }}"
+      - "SQL 线程: {{ final_replica_status.Slave_SQL_Running | default('N/A') }}"
+      - "同步延迟: {{ final_replica_status.Seconds_Behind_Master | default('N/A') }}秒"
       - "======================================="
   when: server_role == 'slave_db'
 

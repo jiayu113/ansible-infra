@@ -82,7 +82,7 @@ slow_query_log_file   = /var/log/mysql/slow.log
 long_query_time       = {{ mysql_slow_query_time }}
 
 # ===== InnoDB 配置 =====
-innodb_buffer_pool_size       = {{ (ansible_memtotal_mb * 0.7) | int }}M
+innodb_buffer_pool_size       = {{ mysql_innodb_buffer_pool_size | default(((ansible_memtotal_mb * 0.7) | int | string) + 'M') }}
 innodb_log_file_size          = 256M
 innodb_flush_log_at_trx_commit = 1
 innodb_file_per_table         = 1

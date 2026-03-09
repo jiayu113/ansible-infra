@@ -1,3 +1,6 @@
 ---
-server_role: master_db
-mysql_server_id: 1
+# MySQL 主库专属配置
+# 注意：server_role 和 mysql_server_id 已在 inventory/production.yml 中定义
+# 如需在此覆盖，取消注释即可：
+# server_role: master_db
+# mysql_server_id: 1

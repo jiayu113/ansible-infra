@@ -24,6 +24,5 @@
     state: restarted
 
 - name: 重载防火墙
-  systemd:
-    name: firewalld
+  ufw:
     state: reloaded
