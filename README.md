@@ -38,8 +38,8 @@ ansible-playbooks/
 │
 ├── group_vars/
 │   └── all/
-│       ├── vars.yml                # 公用变量（可上传 GitHub）
-│       └── vault.yml               # 加密的敏感变量（可上传 GitHub）
+│       ├── vars.yml                # 公用变量
+│       └── vault.yml               # 加密的敏感变量
 │
 ├── host_vars/
 │   ├── server-82.yml               # MySQL 主库专属配置
